@@ -5,7 +5,7 @@ from typing import Any, Optional
 from uuid import uuid4
 
 from mcp.server import Server
-from mcp.server.models import InitializationOptions
+from mcp.server.models import InitializationOptions, ServerCapabilities
 from mcp.types import (
     TextContent,
     Tool,
@@ -23,17 +23,17 @@ logger = get_logger()
 class MCPMemoryServer:
     """MCP server for memory operations."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the MCP server."""
-        self.server = Server(settings.mcp_server_name)
+        self.server: Server = Server(settings.mcp_server_name)
         self.db_client = get_client()
         self.embedding_service = EmbeddingService()
         self.llm_service = LLMService()
         self._setup_handlers()
 
-    def _setup_handlers(self):
+    def _setup_handlers(self) -> None:
         """Set up server handlers."""
-        @self.server.list_tools()
+        @self.server.list_tools()  # type: ignore[misc]
         async def handle_list_tools() -> list[Tool]:
             """Return available tools."""
             return [
@@ -139,7 +139,7 @@ class MCPMemoryServer:
                 ),
             ]
 
-        @self.server.call_tool()
+        @self.server.call_tool()  # type: ignore[misc]
         async def handle_call_tool(
             name: str, arguments: Optional[dict[str, Any]] = None
         ) -> list[TextContent]:
@@ -359,7 +359,7 @@ class MCPMemoryServer:
 
         return result
 
-    async def run(self):
+    async def run(self) -> None:
         """Run the MCP server."""
         from mcp.server.stdio import stdio_server
 
@@ -370,11 +370,12 @@ class MCPMemoryServer:
                 InitializationOptions(
                     server_name=settings.mcp_server_name,
                     server_version=settings.mcp_server_version,
+                    capabilities=ServerCapabilities(),
                 ),
             )
 
 
-def main():
+def main() -> None:
     """Main entry point for MCP server."""
     import asyncio
 

@@ -18,7 +18,7 @@ litellm.set_verbose = False  # Disable verbose logging
 class LLMService:
     """Service for LLM operations using LiteLLM."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize LLM service."""
         self.default_model = settings.llm_model
         self.api_base = settings.llm_api_base

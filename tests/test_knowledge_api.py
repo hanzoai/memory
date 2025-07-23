@@ -211,5 +211,5 @@ class TestKnowledgeAPI:
 
         assert response.status_code == 500
         data = response.json()
-        assert "error" in data
-        assert "DB Error" in data["error"]
+        assert "detail" in data
+        assert "DB Error" in data["detail"]

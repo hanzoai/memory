@@ -46,7 +46,7 @@ class InfinityClient:
                 # Database already exists
                 pass
 
-    def _get_db(self, db_name: str):
+    def _get_db(self, db_name: str) -> Any:
         """Get a database object."""
         return self.infinity.get_database(db_name)
 

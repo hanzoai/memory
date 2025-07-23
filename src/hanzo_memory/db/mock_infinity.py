@@ -12,14 +12,14 @@ class MockDatabase:
 
     def __init__(self, name: str):
         self.name = name
-        self.tables = {}
+        self.tables: dict[str, dict[str, Any]] = {}
 
-    def create_table(self, table_name: str, schema: dict[str, Any]):
+    def create_table(self, table_name: str, schema: dict[str, Any]) -> None:
         """Create a table."""
         if table_name not in self.tables:
             self.tables[table_name] = {"schema": schema, "data": []}
 
-    def get_table(self, table_name: str):
+    def get_table(self, table_name: str) -> "MockTable":
         """Get a table."""
         if table_name not in self.tables:
             raise ValueError(f"Table {table_name} not found")
@@ -33,11 +33,11 @@ class MockTable:
         self.db = db
         self.name = name
 
-    def insert(self, records: list[dict[str, Any]]):
+    def insert(self, records: list[dict[str, Any]]) -> None:
         """Insert records."""
         self.db.tables[self.name]["data"].extend(records)
 
-    def output(self, columns: list[str]):
+    def output(self, columns: list[str]) -> "MockQuery":
         """Start a query."""
         return MockQuery(self, columns)
 
@@ -48,8 +48,8 @@ class MockQuery:
     def __init__(self, table: MockTable, columns: list[str]):
         self.table = table
         self.columns = columns
-        self.filters = []
-        self.vector_search = None
+        self.filters: list[str] = []
+        self.vector_search: dict[str, Any] | None = None
 
     def match_dense(
         self,
@@ -58,7 +58,7 @@ class MockQuery:
         dtype: str,
         metric: str,
         limit: int,
-    ):
+    ) -> "MockQuery":
         """Add vector search."""
         self.vector_search = {
             "column": column,
@@ -68,7 +68,7 @@ class MockQuery:
         }
         return self
 
-    def filter(self, condition: str):
+    def filter(self, condition: str) -> "MockQuery":
         """Add filter condition."""
         self.filters.append(condition)
         return self
@@ -131,14 +131,14 @@ class MockInfinity:
 
     def __init__(self, path: str):
         self.path = Path(path)
-        self.databases = {}
+        self.databases: dict[str, MockDatabase] = {}
 
-    def create_database(self, name: str):
+    def create_database(self, name: str) -> None:
         """Create a database."""
         if name not in self.databases:
             self.databases[name] = MockDatabase(name)
 
-    def get_database(self, name: str):
+    def get_database(self, name: str) -> MockDatabase:
         """Get a database."""
         if name not in self.databases:
             self.create_database(name)

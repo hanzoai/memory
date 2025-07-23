@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hanzo-memory"
-version = "0.1.0"
+version = "0.1.1"
 description = "AI memory service with FastAPI and MCP support"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -121,7 +121,7 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.13"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -134,6 +134,8 @@ warn_unused_ignores = true
 warn_no_return = true
 warn_unreachable = true
 strict_equality = true
+ignore_missing_imports = true
+
 
 [tool.pytest.ini_options]
 minversion = "8.0"

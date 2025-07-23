@@ -2,12 +2,12 @@
 
 import json
 import uuid
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Optional
+from typing import Optional, Union
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials
 from structlog import get_logger
 
@@ -39,7 +39,7 @@ embedding_service = None
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager."""
     global db_client, embedding_service
 
@@ -50,14 +50,16 @@ async def lifespan(app: FastAPI):
     # Initialize services
     db_client = get_client()
     embedding_service = get_embedding_service()
-    db_client.create_projects_table()
-    db_client.create_knowledge_bases_table()
+    if db_client:
+        db_client.create_projects_table()
+        db_client.create_knowledge_bases_table()
 
     yield
 
     # Shutdown
     logger.info("Shutting down Hanzo Memory Service")
-    db_client.close()
+    if db_client:
+        db_client.close()
 
 
 # Create FastAPI app
@@ -79,7 +81,7 @@ app.add_middleware(
 
 
 @app.get("/health")
-async def health_check():
+async def health_check() -> dict[str, str]:
     """Health check endpoint."""
     return {
         "status": "healthy",
@@ -93,7 +95,7 @@ async def remember(
     request: RememberRequest,
     req: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
+) -> MemoryResponse:
     """
     Retrieve relevant memories and store new memory.
 
@@ -133,6 +135,7 @@ async def remember(
     )
 
     # Format response
+    relevant_memories: list[Union[str, dict[str, str]]]
     if request.includememoryid:
         relevant_memories = [
             {"content": m.content, "memoryId": m.memory_id} for m in memories
@@ -160,7 +163,7 @@ async def add_memories(
     request: AddMemoriesRequest,
     req: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
+) -> dict:
     """Add explicit memories without importance analysis."""
     # Check auth
     request.apikey or require_auth(req, credentials)
@@ -204,7 +207,7 @@ async def get_memories(
     request: GetMemoriesRequest,
     req: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
+) -> MemoryListResponse:
     """Retrieve stored memories."""
     # Check auth
     request.apikey or require_auth(req, credentials)
@@ -244,7 +247,7 @@ async def delete_memory(
     request: DeleteMemoryRequest,
     req: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
+) -> dict:
     """Delete a specific memory."""
     # Check auth
     request.apikey or require_auth(req, credentials)
@@ -270,7 +273,7 @@ async def delete_user(
     request: DeleteUserRequest,
     req: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
+) -> dict:
     """Delete all memories for a user."""
     # Check auth
     request.apikey or require_auth(req, credentials)
@@ -300,7 +303,7 @@ async def create_knowledge_base(
     request: CreateKnowledgeBaseRequest,
     req: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
+) -> dict:
     """Create a new knowledge base."""
     try:
         # Get or verify user ID
@@ -312,17 +315,20 @@ async def create_knowledge_base(
             # Create or get default project for user
             project_id = f"default-{user_id}"
             try:
-                db_client.create_project(
-                    project_id=project_id,
-                    user_id=user_id,
-                    name="Default Project",
-                    description="Automatically created default project",
-                )
+                if db_client:
+                    db_client.create_project(
+                        project_id=project_id,
+                        user_id=user_id,
+                        name="Default Project",
+                        description="Automatically created default project",
+                    )
             except Exception:
                 pass  # Project may already exist
 
         # Create knowledge base
         kb_id = request.kb_id or str(uuid.uuid4())
+        if not db_client:
+            raise HTTPException(status_code=503, detail="Database not initialized")
         db_client.create_knowledge_base(
             kb_id=kb_id,
             user_id=user_id,
@@ -337,18 +343,18 @@ async def create_knowledge_base(
         }
     except Exception as e:
         logger.error(f"Error creating knowledge base: {e}")
-        return JSONResponse(
-            status_code=500, content={"error": str(e)}
-        )
+        raise HTTPException(
+            status_code=500, detail=str(e)
+        ) from e
 
 
 @app.get("/v1/kb/list")
 async def list_knowledge_bases(
+    req: Request,
     userid: str = Query(...),
     project_id: Optional[str] = Query(None),
-    req: Request = None,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
+) -> dict:
     """List knowledge bases for a user."""
     try:
         # Get or verify user ID
@@ -365,9 +371,9 @@ async def list_knowledge_bases(
         }
     except Exception as e:
         logger.error(f"Error listing knowledge bases: {e}")
-        return JSONResponse(
-            status_code=500, content={"error": str(e)}
-        )
+        raise HTTPException(
+            status_code=500, detail=str(e)
+        ) from e
 
 
 @app.post("/v1/kb/facts/add")
@@ -375,7 +381,7 @@ async def add_facts(
     request: AddKnowledgeRequest,
     req: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
+) -> dict:
     """Add facts to a knowledge base."""
     try:
         # Get or verify user ID
@@ -386,10 +392,14 @@ async def add_facts(
         for fact_data in request.facts:
             # Generate embedding for fact content
             content = fact_data.get("content", "")
+            if not embedding_service:
+                raise HTTPException(status_code=503, detail="Embedding service not initialized")
             embedding = embedding_service.embed_text(content)[0]
 
             # Add fact to database
             fact_id = fact_data.get("fact_id") or str(uuid.uuid4())
+            if not db_client:
+                raise HTTPException(status_code=503, detail="Database not initialized")
             db_client.add_fact(
                 fact_id=fact_id,
                 kb_id=request.kb_id,
@@ -411,9 +421,9 @@ async def add_facts(
         }
     except Exception as e:
         logger.error(f"Error adding facts: {e}")
-        return JSONResponse(
-            status_code=500, content={"error": str(e)}
-        )
+        raise HTTPException(
+            status_code=500, detail=str(e)
+        ) from e
 
 
 @app.post("/v1/kb/facts/get")
@@ -421,7 +431,7 @@ async def get_facts(
     request: GetKnowledgeRequest,
     req: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
+) -> dict:
     """Get facts from a knowledge base."""
     try:
         # Get or verify user ID
@@ -430,9 +440,13 @@ async def get_facts(
         # Search facts if query provided
         if request.query:
             # Generate query embedding
+            if not embedding_service:
+                raise HTTPException(status_code=503, detail="Embedding service not initialized")
             query_embedding = embedding_service.embed_text(request.query)[0]
 
             # Search facts
+            if not db_client:
+                raise HTTPException(status_code=503, detail="Database not initialized")
             results_df = db_client.search_facts(
                 kb_id=request.kb_id,
                 query_embedding=query_embedding,
@@ -466,9 +480,9 @@ async def get_facts(
             }
     except Exception as e:
         logger.error(f"Error getting facts: {e}")
-        return JSONResponse(
-            status_code=500, content={"error": str(e)}
-        )
+        raise HTTPException(
+            status_code=500, detail=str(e)
+        ) from e
 
 
 @app.post("/v1/kb/facts/delete")
@@ -476,7 +490,7 @@ async def delete_fact(
     request: DeleteKnowledgeRequest,
     req: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
+) -> dict:
     """Delete a fact from a knowledge base."""
     try:
         # Get or verify user ID
@@ -493,9 +507,9 @@ async def delete_fact(
         }
     except Exception as e:
         logger.error(f"Error deleting fact: {e}")
-        return JSONResponse(
-            status_code=500, content={"error": str(e)}
-        )
+        raise HTTPException(
+            status_code=500, detail=str(e)
+        ) from e
 
 
 # Chat Management Endpoints
@@ -506,7 +520,7 @@ async def create_chat_session(
     request: ChatSessionCreate,
     req: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
+) -> dict:
     """Create a new chat session."""
     try:
         # Get or verify user ID
@@ -519,6 +533,8 @@ async def create_chat_session(
         project_id = request.project_id or f"default-{user_id}"
 
         # Ensure user's chat table exists
+        if not db_client:
+            raise HTTPException(status_code=503, detail="Database not initialized")
         db_client.create_chats_table(user_id)
 
         return {
@@ -529,9 +545,9 @@ async def create_chat_session(
         }
     except Exception as e:
         logger.error(f"Error creating chat session: {e}")
-        return JSONResponse(
-            status_code=500, content={"error": str(e)}
-        )
+        raise HTTPException(
+            status_code=500, detail=str(e)
+        ) from e
 
 
 @app.post("/v1/chat/messages/add")
@@ -539,17 +555,21 @@ async def add_chat_message(
     request: ChatMessageCreate,
     req: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
+) -> dict:
     """Add a message to a chat session."""
     try:
         # Get or verify user ID
         user_id = await get_or_verify_user_id(request.userid, credentials, req)
 
         # Generate embedding for message content
+        if not embedding_service:
+            raise HTTPException(status_code=503, detail="Embedding service not initialized")
         embedding = embedding_service.embed_text(request.content)[0]
 
         # Check for duplicate messages
         # Search for similar messages in the same session
+        if not db_client:
+            raise HTTPException(status_code=503, detail="Database not initialized")
         search_results = db_client.search_chats(
             user_id=user_id,
             query_embedding=embedding,
@@ -573,6 +593,8 @@ async def add_chat_message(
         if not is_duplicate:
             # Add new message
             chat_id = str(uuid.uuid4())
+            if not db_client:
+                raise HTTPException(status_code=503, detail="Database not initialized")
             db_client.add_chat_message(
                 chat_id=chat_id,
                 user_id=user_id,
@@ -591,25 +613,27 @@ async def add_chat_message(
         }
     except Exception as e:
         logger.error(f"Error adding chat message: {e}")
-        return JSONResponse(
-            status_code=500, content={"error": str(e)}
-        )
+        raise HTTPException(
+            status_code=500, detail=str(e)
+        ) from e
 
 
 @app.get("/v1/chat/sessions/{session_id}/messages")
 async def get_chat_messages(
     session_id: str,
+    req: Request,
     userid: str = Query(...),
     limit: int = Query(100, ge=1, le=1000),
-    req: Request = None,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
+) -> dict:
     """Get messages for a chat session."""
     try:
         # Get or verify user ID
         user_id = await get_or_verify_user_id(userid, credentials, req)
 
         # Get chat history
+        if not db_client:
+            raise HTTPException(status_code=503, detail="Database not initialized")
         history_df = db_client.get_chat_history(
             user_id=user_id,
             session_id=session_id,
@@ -638,30 +662,34 @@ async def get_chat_messages(
         }
     except Exception as e:
         logger.error(f"Error getting chat messages: {e}")
-        return JSONResponse(
-            status_code=500, content={"error": str(e)}
-        )
+        raise HTTPException(
+            status_code=500, detail=str(e)
+        ) from e
 
 
 @app.post("/v1/chat/search")
 async def search_chat_messages(
+    req: Request,
     query: str = Query(...),
     userid: str = Query(...),
     project_id: Optional[str] = Query(None),
     session_id: Optional[str] = Query(None),
     limit: int = Query(10, ge=1, le=100),
-    req: Request = None,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-):
+) -> dict:
     """Search across chat messages."""
     try:
         # Get or verify user ID
         user_id = await get_or_verify_user_id(userid, credentials, req)
 
         # Generate query embedding
+        if not embedding_service:
+            raise HTTPException(status_code=503, detail="Embedding service not initialized")
         query_embedding = embedding_service.embed_text(query)[0]
 
         # Search chats
+        if not db_client:
+            raise HTTPException(status_code=503, detail="Database not initialized")
         results_df = db_client.search_chats(
             user_id=user_id,
             query_embedding=query_embedding,
@@ -690,12 +718,12 @@ async def search_chat_messages(
         }
     except Exception as e:
         logger.error(f"Error searching chat messages: {e}")
-        return JSONResponse(
-            status_code=500, content={"error": str(e)}
-        )
+        raise HTTPException(
+            status_code=500, detail=str(e)
+        ) from e
 
 
-def run():
+def run() -> None:
     """Run the server."""
     import uvicorn
 

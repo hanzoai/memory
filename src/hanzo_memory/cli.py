@@ -11,7 +11,7 @@ console = Console()
 
 @click.group()
 @click.version_option(version="0.1.0", prog_name="hanzo-memory")
-def cli():
+def cli() -> None:
     """Hanzo Memory Service - AI memory and knowledge management."""
     pass
 
@@ -19,7 +19,7 @@ def cli():
 @cli.command()
 @click.option("--host", default="0.0.0.0", help="Server host")
 @click.option("--port", default=4000, type=int, help="Server port")
-def server(host: str, port: int):
+def server(host: str, port: int) -> None:
     """Run the FastAPI server."""
     console.print(f"[green]Starting Hanzo Memory Service on {host}:{port}[/green]")
     settings.host = host
@@ -28,7 +28,7 @@ def server(host: str, port: int):
 
 
 @cli.command()
-def info():
+def info() -> None:
     """Show service information."""
     console.print("[bold]Hanzo Memory Service[/bold]")
     console.print("Version: 0.1.0")
@@ -38,7 +38,7 @@ def info():
     console.print(f"Auth Disabled: {settings.disable_auth}")
 
 
-def main():
+def main() -> None:
     """Main entry point."""
     cli()
 

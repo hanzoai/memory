@@ -130,7 +130,7 @@ class EmbeddingService:
         else:
             raise ValueError(f"Unknown metric: {metric}")
 
-        return similarities.tolist()
+        return list(similarities.tolist())  # Type hint for mypy
 
     def get_model_info(self) -> dict:
         """Get information about the current embedding model."""

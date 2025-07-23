@@ -90,4 +90,29 @@ class Settings(BaseSettings):
 
 
 # Global settings instance
-settings = Settings()
+settings = Settings(
+    api_key=None,
+    disable_auth=False,
+    host="0.0.0.0",
+    port=4000,
+    infinity_db_path=Path("data/infinity_db"),
+    llm_model="gpt-4o-mini",
+    llm_api_base=None,
+    llm_api_key=None,
+    llm_temperature=0.7,
+    llm_max_tokens=1000,
+    openai_api_key=None,
+    anthropic_api_key=None,
+    embedding_model="BAAI/bge-small-en-v1.5",
+    embedding_dimensions=384,
+    max_memories_per_user=10000,
+    memory_retrieval_limit=50,
+    max_knowledge_bases_per_user=100,
+    max_facts_per_base=100000,
+    redis_url=None,
+    cache_ttl=3600,
+    log_level="INFO",
+    log_format="json",
+    mcp_server_name="hanzo-memory",
+    mcp_server_version="1.0.0",
+)

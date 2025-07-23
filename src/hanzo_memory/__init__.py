@@ -1,6 +1,6 @@
 """Hanzo Memory Service - AI memory and knowledge management."""
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 __author__ = "Hanzo Industries Inc."
 __email__ = "dev@hanzo.ai"
 

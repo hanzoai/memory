@@ -18,7 +18,7 @@ logger = get_logger()
 class MemoryService:
     """Service for managing memories."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize memory service."""
         self.db = get_client()
         self.embeddings = get_embedding_service()

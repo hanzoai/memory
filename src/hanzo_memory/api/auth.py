@@ -100,7 +100,7 @@ def require_auth(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    return api_key
+    return api_key or ""  # Return empty string if None
 
 
 async def get_or_verify_user_id(
