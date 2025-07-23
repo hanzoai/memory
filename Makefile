@@ -136,6 +136,11 @@ install-local: ## Install package locally with uv
 	@echo "$(BLUE)Installing package locally...$(NC)"
 	uv pip install .
 
+.PHONY: publish
+publish: build ## Build and publish package to PyPI
+	@echo "$(BLUE)Publishing package to PyPI...$(NC)"
+	uv run twine upload dist/*
+
 ##@ Database
 
 .PHONY: db-init

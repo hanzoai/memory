@@ -57,6 +57,7 @@ dev = [
     "pre-commit>=4.0.0",
     "ipython>=8.29.0",
     "ipdb>=0.13.0",
+    "twine>=4.0.0",
 ]
 
 test = [
