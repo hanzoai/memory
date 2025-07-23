@@ -1,245 +1,306 @@
-# Hanzo Memory Service
+# @hanzo/memory
 
-## Add memory to any AI application!
-
-A high-performance FastAPI service that provides memory and knowledge management capabilities for AI applications. Built with LanceDB vector database (works on all platforms including browsers via WASM), local embeddings, and LiteLLM for flexible LLM integration.
+AI memory service for TypeScript/JavaScript applications with LanceDB vector database. Works in Node.js, browsers, and edge environments.
 
 ## Features
 
-- **🧠 Intelligent Memory Management**: Store and retrieve contextual memories with semantic search
-- **📚 Knowledge Base System**: Organize facts in hierarchical knowledge bases with parent-child relationships
-- **💬 Chat History**: Store and search conversation history with de-duplication
-- **🔍 Unified Search API**: Fast semantic search using FastEmbed embeddings
-- **🤖 Flexible LLM Support**: Use any LLM via LiteLLM (OpenAI, Anthropic, Ollama, etc.)
-- **🔐 Multi-tenancy**: Secure user and project-based data isolation
-- **🚀 High Performance**: Local embeddings and efficient vector storage
-- **🗄️ Cross-Platform Database**: LanceDB works everywhere - Linux, macOS, Windows, and even browsers
-- **🔌 MCP Support**: Model Context Protocol server for AI tool integration
-- **📦 Easy Deployment**: Docker support and uvx compatibility
+- 🧠 **Intelligent Memory Management**: Store and retrieve contextual memories with semantic search
+- 📚 **Knowledge Base System**: Organize facts in hierarchical knowledge bases
+- 💬 **Chat History**: Store and search conversation history
+- 🔍 **Vector Search**: Fast semantic search using local or cloud embeddings
+- 🌐 **Cross-Platform**: Works in Node.js, browsers, and edge environments
+- 🗄️ **LanceDB**: Modern vector database with WASM support for browsers
+- 🔌 **Flexible Embeddings**: Use local models (Transformers.js) or OpenAI
+- 🤖 **LLM Integration**: Optional OpenAI integration for advanced features
 
-## Architecture
+## Installation
 
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   FastAPI       │────▶│  Vector DB      │────▶│   Embeddings    │
-│   Server        │     │ (LanceDB/       │     │ (FastEmbed/     │
-└─────────────────┘     │  InfinityDB)    │     │  LanceDB)       │
-         │              └─────────────────┘     └─────────────────┘
-         ▼                                                │
-┌─────────────────┐                              ┌─────────────────┐
-│   LiteLLM       │                              │   Local Models  │
-│   (LLM Bridge)  │                              │   (BGE, etc.)   │
-└─────────────────┘                              └─────────────────┘
+```bash
+npm install @hanzo/memory
+# or
+yarn add @hanzo/memory
+# or
+pnpm add @hanzo/memory
 ```
 
 ## Quick Start
 
-### Install with uvx
+```typescript
+import { MemoryClient } from '@hanzo/memory'
 
-```bash
-# Install and run directly with uvx
-uvx hanzo-memory
+// Initialize the client
+const client = new MemoryClient()
 
-# Or install globally
-uvx install hanzo-memory
-```
+// Store a memory
+const memory = await client.remember({
+  userid: 'user123',
+  projectid: 'project456',
+  content: 'The user prefers dark mode and uses VSCode',
+  metadata: { category: 'preferences' },
+  importance: 8,
+})
 
-### Install from source
+// Search memories
+const results = await client.search({
+  userid: 'user123',
+  query: 'What IDE does the user prefer?',
+  limit: 5,
+})
 
-```bash
-# Clone the repository
-git clone https://github.com/hanzoai/memory
-cd memory
-
-# Install with uv
-make setup
-
-# Run the server
-make dev
-```
-
-### Docker
-
-```bash
-# Using docker-compose
-docker-compose up
-
-# Or build and run manually
-docker build -t hanzo-memory .
-docker run -p 4000:4000 -v $(pwd)/data:/app/data hanzo-memory
+console.log(results[0].content) // "The user prefers dark mode and uses VSCode"
+console.log(results[0].similarity_score) // 0.92
 ```
 
 ## Configuration
 
-Create a `.env` file (see `.env.example`):
+Set environment variables or pass configuration:
 
-```env
-# API Authentication
-HANZO_API_KEY=your-api-key-here
-HANZO_DISABLE_AUTH=false  # Set to true for local development
+```typescript
+// Via environment variables
+process.env.HANZO_DB_BACKEND = 'lancedb' // or 'memory' for in-memory
+process.env.HANZO_EMBEDDING_MODEL = 'Xenova/all-MiniLM-L6-v2'
+process.env.OPENAI_API_KEY = 'your-key' // Optional, for OpenAI embeddings/LLM
 
-# LLM Configuration (choose one)
-# OpenAI
-HANZO_LLM_MODEL=gpt-4o-mini
-OPENAI_API_KEY=your-openai-key
+// Or configure programmatically
+import { loadConfig } from '@hanzo/memory'
 
-# Anthropic
-HANZO_LLM_MODEL=claude-3-haiku-20240307
-ANTHROPIC_API_KEY=your-anthropic-key
+const config = loadConfig({
+  dbBackend: 'lancedb',
+  embeddingModel: 'Xenova/all-MiniLM-L6-v2',
+  openaiApiKey: 'your-key',
+})
+```
 
-# Local Models (Ollama)
-HANZO_LLM_MODEL=ollama/llama3.2
-HANZO_LLM_API_BASE=http://localhost:11434
+## Browser Usage
 
-# Embedding Model
-HANZO_EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
+The library works in browsers with some considerations:
 
-# Database Backend (optional, defaults to lancedb)
-HANZO_DB_BACKEND=lancedb
-HANZO_LANCEDB_PATH=data/lancedb
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <script type="module">
+    import { MemoryClient } from 'https://unpkg.com/@hanzo/memory'
+    
+    // Use in-memory database for browser
+    window.HANZO_DB_BACKEND = 'memory'
+    
+    const client = new MemoryClient()
+    
+    // Store and search memories
+    await client.remember({
+      userid: 'browser-user',
+      content: 'User clicked the help button',
+    })
+  </script>
+</head>
+</html>
+```
+
+## API Reference
+
+### Memory Operations
+
+```typescript
+// Store a memory
+await client.remember({
+  userid: string
+  projectid?: string
+  content: string
+  metadata?: Record<string, any>
+  importance?: number // 0-10
+  strip_pii?: boolean // Remove personally identifiable information
+})
+
+// Search memories
+await client.search({
+  userid: string
+  projectid?: string
+  query: string
+  limit?: number
+  filter_with_llm?: boolean // Use LLM to filter results
+  additional_context?: string
+})
+
+// Get specific memory
+await client.getMemory(userId, memoryId)
+
+// Delete memory
+await client.deleteMemory(userId, memoryId)
+
+// Delete all user memories
+await client.deleteUserMemories(userId)
+```
+
+### Project Management
+
+```typescript
+// Create project
+await client.createProject({
+  userId: string
+  name: string
+  description?: string
+  metadata?: Record<string, any>
+})
+
+// Get user projects
+await client.getUserProjects(userId)
+```
+
+### Knowledge Base
+
+```typescript
+// Create knowledge base
+await client.createKnowledgeBase({
+  projectId: string
+  name: string
+  description?: string
+  metadata?: Record<string, any>
+})
+
+// Add fact
+await client.addFact({
+  knowledgeBaseId: string
+  content: string
+  metadata?: Record<string, any>
+  confidence?: number // 0-1
+})
+
+// Search facts
+await client.searchFacts({
+  knowledgeBaseId: string
+  query?: string
+  limit?: number
+})
+```
+
+### Chat History
+
+```typescript
+// Create chat session
+await client.createChatSession({
+  userId: string
+  projectId: string
+  metadata?: Record<string, any>
+})
+
+// Add message
+await client.addChatMessage({
+  sessionId: string
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  metadata?: Record<string, any>
+})
+
+// Get messages
+await client.getChatMessages(sessionId, limit?)
+
+// Search messages
+await client.searchChatMessages({
+  sessionId: string
+  query: string
+  limit?: number
+})
 ```
 
 ## Database Backends
 
-Hanzo Memory supports multiple vector database backends:
-
 ### LanceDB (Default)
-- Modern embedded vector database that works on ALL platforms
-- Cross-platform: Linux, macOS, Windows, ARM, and even browsers (via WASM)
-- Built-in support for FastEmbed and sentence-transformers
-- Efficient columnar storage format (Apache Arrow/Parquet)
+- Works everywhere: Node.js, browsers (WASM), edge runtimes
+- Persistent storage with efficient columnar format
 - Native vector similarity search
-- Can be embedded in Python, JavaScript/TypeScript, Rust applications
 
-### InfinityDB (Alternative, Linux/Windows only)
-- High-performance embedded vector database
-- Not available on macOS
-- Optimized for production workloads
-- Built-in vector indexing
+### Memory (In-Memory)
+- Perfect for testing and browser demos
+- No persistence
+- Fast for small datasets
 
-To configure the database backend:
+## Embeddings
 
-```env
-# Use LanceDB
-HANZO_DB_BACKEND=lancedb
-HANZO_LANCEDB_PATH=data/lancedb
+### Local Embeddings (Default)
+Uses Transformers.js to run embedding models locally:
+- No API keys required
+- Privacy-friendly
+- Works offline
+- Models cached locally
 
-# Use InfinityDB
-HANZO_DB_BACKEND=infinity
-HANZO_INFINITY_DB_PATH=data/infinity_db
-```
+### OpenAI Embeddings
+Set `OPENAI_API_KEY` to use OpenAI's embedding models:
+- Higher quality embeddings
+- Faster for large batches
+- Requires internet connection
 
-## API Documentation
+## Examples
 
-For complete API documentation including all endpoints, request/response formats, and examples, see [docs/API.md](docs/API.md).
+### React Application
 
-### Quick API Overview
+```tsx
+import { useState, useEffect } from 'react'
+import { MemoryClient } from '@hanzo/memory'
 
-- **Memory Management**: `/v1/remember`, `/v1/memories/*`
-- **Knowledge Bases**: `/v1/kb/*`, `/v1/kb/facts/*`
-- **Chat Sessions**: `/v1/chat/sessions/*`, `/v1/chat/messages/*`
-- **Search**: Unified semantic search across all data types
-- **MCP Server**: Model Context Protocol integration for AI tools
-
-### LLM Features
-
-The service can:
-- **Summarize content** for knowledge extraction
-- **Generate knowledge update instructions** in JSON format
-- **Filter search results** for relevance
-- **Strip PII** from stored content
-
-Example summarization request:
-```python
-llm_service.summarize_for_knowledge(
-    content="Long document...",
-    skip_summarization=False,  # Set to True to skip
-    provided_summary="Optional pre-made summary"
-)
-```
-
-Returns:
-```json
-{
-  "summary": "Concise summary of content",
-  "knowledge_instructions": {
-    "action": "add_fact",
-    "facts": [{"content": "Extracted fact", "metadata": {...}}],
-    "reasoning": "Why these facts are important"
+function MemorySearch() {
+  const [client] = useState(() => new MemoryClient())
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState([])
+  
+  const search = async () => {
+    const memories = await client.search({
+      userid: 'current-user',
+      query,
+      limit: 10,
+    })
+    setResults(memories)
   }
+  
+  return (
+    <div>
+      <input 
+        value={query} 
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search memories..."
+      />
+      <button onClick={search}>Search</button>
+      
+      {results.map((memory) => (
+        <div key={memory.memory_id}>
+          <p>{memory.content}</p>
+          <small>Score: {memory.similarity_score.toFixed(2)}</small>
+        </div>
+      ))}
+    </div>
+  )
 }
 ```
 
-## Development
+### Edge Function
 
-### Running Tests
-
-```bash
-# Run all tests
-make test
-
-# Run with coverage
-make test-cov
-
-# Run specific test
-uvx pytest tests/test_memory_api.py -v
+```typescript
+export default {
+  async fetch(request: Request) {
+    const client = new MemoryClient()
+    
+    // Parse request
+    const { userid, content } = await request.json()
+    
+    // Store memory
+    const memory = await client.remember({
+      userid,
+      content,
+      metadata: {
+        ip: request.headers.get('CF-Connecting-IP'),
+        timestamp: Date.now(),
+      },
+    })
+    
+    return Response.json({ memory })
+  },
+}
 ```
-
-### Code Quality
-
-```bash
-# Format code
-make format
-
-# Run linter
-make lint
-
-# Type checking
-make type-check
-```
-
-### Project Structure
-
-```
-memory/
-├── src/hanzo_memory/
-│   ├── api/          # API authentication
-│   ├── db/           # InfinityDB client
-│   ├── models/       # Pydantic models
-│   ├── services/     # Business logic
-│   ├── config.py     # Settings
-│   └── server.py     # FastAPI app
-├── tests/            # Pytest tests
-├── Makefile          # Build automation
-└── pyproject.toml    # Project config
-```
-
-## Deployment
-
-### Production Checklist
-
-1. Set strong `HANZO_API_KEY`
-2. Configure appropriate LLM model and API keys
-3. Set `HANZO_DISABLE_AUTH=false`
-4. Configure data persistence volume
-5. Set up monitoring and logging
-6. Configure rate limiting if needed
-
-### Scaling Considerations
-
-- InfinityDB embedded runs in-process (no separate DB server)
-- FastEmbed generates embeddings locally (no API calls)
-- LLM calls can be directed to local models for full offline operation
-- Use Redis for caching in high-traffic scenarios
-
-## Contributing
-
-Pull requests are welcome! Please:
-1. Write tests for new features
-2. Follow existing code style
-3. Update documentation as needed
-4. Run `make check` before submitting
 
 ## License
 
-BSD License - see LICENSE file for details.
+BSD-3-Clause
+
+## Contributing
+
+See the [Python version](https://github.com/hanzoai/memory) for the reference implementation.

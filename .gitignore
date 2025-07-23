@@ -1,31 +1,21 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
 
-# Virtual Environment
-venv/
-ENV/
-env/
-.venv
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Testing
+coverage/
+.nyc_output/
+
+# Environment files
+.env
+.env.local
+.env.*.local
 
 # IDE
 .vscode/
@@ -35,50 +25,29 @@ env/
 *~
 .DS_Store
 
-# Testing
-.tox/
-.coverage
-.coverage.*
-.cache
-.pytest_cache/
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-htmlcov/
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# Type checking
-.mypy_cache/
-.dmypy.json
-dmypy.json
-.ruff_cache/
+# OS
+.DS_Store
+Thumbs.db
 
-# Environment
-.env
-.env.local
-.env.*.local
+# Misc
+*.local
+.cache/
 
 # Data
 data/
 *.db
 *.sqlite
-*.log
 
 # Temporary files
 *.tmp
 *.bak
 .~*
-
-# Documentation
-docs/_build/
-site/
-
-# Docker
-.dockerignore
-
-# OS
-Thumbs.db
-.DS_Store
-
-# Other repos
-hanzo-memory-js/
