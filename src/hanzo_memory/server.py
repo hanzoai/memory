@@ -13,7 +13,7 @@ from structlog import get_logger
 
 from .api.auth import get_or_verify_user_id, require_auth, security
 from .config import settings
-from .db.client import get_client
+from .db import get_db_client
 from .models import (
     AddKnowledgeRequest,
     AddMemoriesRequest,
@@ -48,7 +48,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     settings.ensure_paths()
 
     # Initialize services
-    db_client = get_client()
+    db_client = get_db_client()
     embedding_service = get_embedding_service()
     if db_client:
         db_client.create_projects_table()

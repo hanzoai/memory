@@ -10,6 +10,7 @@ import polars as pl
 from structlog import get_logger
 
 from ..config import settings
+from .base import BaseVectorDB
 
 logger = get_logger()
 
@@ -25,7 +26,7 @@ except ImportError:
     from . import mock_infinity as infinity_embedded
 
 
-class InfinityClient:
+class InfinityClient(BaseVectorDB):
     """Client for InfinityDB operations."""
 
     def __init__(self, db_path: Optional[str] = None):

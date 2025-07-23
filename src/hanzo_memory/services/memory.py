@@ -7,7 +7,7 @@ from typing import Optional
 
 from structlog import get_logger
 
-from ..db.client import get_client
+from ..db import get_db_client
 from ..models.memory import Memory, MemoryWithScore
 from .embeddings import get_embedding_service
 from .llm import get_llm_service
@@ -20,7 +20,7 @@ class MemoryService:
 
     def __init__(self) -> None:
         """Initialize memory service."""
-        self.db = get_client()
+        self.db = get_db_client()
         self.embeddings = get_embedding_service()
         self.llm = get_llm_service()
 

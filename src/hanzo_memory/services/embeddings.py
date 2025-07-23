@@ -1,14 +1,28 @@
-"""Embedding service using FastEmbed."""
+"""Embedding service using FastEmbed or LanceDB."""
 
 from typing import Optional, Union
 
 import numpy as np
-from fastembed import TextEmbedding
 from structlog import get_logger
 
 from ..config import settings
 
 logger = get_logger()
+
+# Import backend-specific implementations
+try:
+    from fastembed import TextEmbedding
+    FASTEMBED_AVAILABLE = True
+except ImportError:
+    FASTEMBED_AVAILABLE = False
+    logger.warning("FastEmbed not available")
+
+try:
+    from .embeddings_lancedb import LanceDBEmbeddingService
+    LANCEDB_AVAILABLE = True
+except ImportError:
+    LANCEDB_AVAILABLE = False
+    logger.warning("LanceDB embeddings not available")
 
 
 class EmbeddingService:
@@ -17,13 +31,15 @@ class EmbeddingService:
     def __init__(self, model_name: Optional[str] = None):
         """Initialize the embedding service."""
         self.model_name = model_name or settings.embedding_model
-        self._model: Optional[TextEmbedding] = None
+        self._model = None
         logger.info(f"Initializing embedding service with model: {self.model_name}")
 
     @property
-    def model(self) -> TextEmbedding:
+    def model(self):
         """Lazy load the embedding model."""
         if self._model is None:
+            if not FASTEMBED_AVAILABLE:
+                raise RuntimeError("FastEmbed is not available")
             logger.info(f"Loading embedding model: {self.model_name}")
             self._model = TextEmbedding(model_name=self.model_name)
             logger.info(f"Model {self.model_name} loaded successfully")
@@ -149,5 +165,22 @@ def get_embedding_service() -> EmbeddingService:
     """Get or create the global embedding service."""
     global _embedding_service
     if _embedding_service is None:
-        _embedding_service = EmbeddingService()
+        # Use LanceDB embeddings if configured
+        if settings.db_backend == "lancedb" and LANCEDB_AVAILABLE:
+            logger.info("Using LanceDB embedding service")
+            from .embeddings_lancedb import get_lancedb_embedding_service
+            # Wrap LanceDB service in standard interface
+            lancedb_service = get_lancedb_embedding_service()
+            _embedding_service = EmbeddingService()
+            # Override methods with LanceDB implementation
+            _embedding_service.embed_text = lancedb_service.embed_text
+            _embedding_service.embed_single = lancedb_service.embed_single
+            _embedding_service.embed_batch = lancedb_service.embed_batch
+            _embedding_service.compute_similarity = lancedb_service.compute_similarity
+            _embedding_service.get_model_info = lancedb_service.get_model_info
+        elif FASTEMBED_AVAILABLE:
+            logger.info("Using FastEmbed embedding service")
+            _embedding_service = EmbeddingService()
+        else:
+            raise RuntimeError("No embedding backend available")
     return _embedding_service

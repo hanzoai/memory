@@ -1,5 +1,6 @@
 """Configuration settings for Hanzo Memory Service."""
 
+import platform
 from pathlib import Path
 from typing import Optional
 
@@ -27,9 +28,20 @@ class Settings(BaseSettings):
     host: str = Field("0.0.0.0", description="Server host")
     port: int = Field(4000, description="Server port")
 
+    # Database Backend Settings
+    db_backend: str = Field(
+        "lancedb",  # LanceDB works on all platforms
+        description="Database backend to use (lancedb, infinity)",
+    )
+    
     # InfinityDB Settings
     infinity_db_path: Path = Field(
         Path("data/infinity_db"), description="Path to InfinityDB data directory"
+    )
+    
+    # LanceDB Settings
+    lancedb_path: Path = Field(
+        Path("data/lancedb"), description="Path to LanceDB data directory"
     )
 
     # LLM Settings (LiteLLM compatible)
@@ -87,6 +99,7 @@ class Settings(BaseSettings):
     def ensure_paths(self) -> None:
         """Ensure required paths exist."""
         self.infinity_db_path.mkdir(parents=True, exist_ok=True)
+        self.lancedb_path.mkdir(parents=True, exist_ok=True)
 
 
 # Global settings instance
@@ -95,7 +108,9 @@ settings = Settings(
     disable_auth=False,
     host="0.0.0.0",
     port=4000,
+    db_backend="lancedb",
     infinity_db_path=Path("data/infinity_db"),
+    lancedb_path=Path("data/lancedb"),
     llm_model="gpt-4o-mini",
     llm_api_base=None,
     llm_api_key=None,

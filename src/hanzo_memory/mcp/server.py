@@ -13,7 +13,7 @@ from mcp.types import (
 from structlog import get_logger
 
 from ..config import settings
-from ..db.client import get_client
+from ..db import get_db_client
 from ..services.embeddings import EmbeddingService
 from ..services.llm import LLMService
 
@@ -26,7 +26,7 @@ class MCPMemoryServer:
     def __init__(self) -> None:
         """Initialize the MCP server."""
         self.server: Server = Server(settings.mcp_server_name)
-        self.db_client = get_client()
+        self.db_client = get_db_client()
         self.embedding_service = EmbeddingService()
         self.llm_service = LLMService()
         self._setup_handlers()

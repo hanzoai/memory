@@ -2,7 +2,7 @@
 
 ## Add memory to any AI application!
 
-A high-performance FastAPI service that provides memory and knowledge management capabilities for AI applications. Built with InfinityDB for vector storage, FastEmbed for local embeddings, and LiteLLM for flexible LLM integration.
+A high-performance FastAPI service that provides memory and knowledge management capabilities for AI applications. Built with LanceDB vector database (works on all platforms including browsers via WASM), local embeddings, and LiteLLM for flexible LLM integration.
 
 ## Features
 
@@ -12,7 +12,8 @@ A high-performance FastAPI service that provides memory and knowledge management
 - **🔍 Unified Search API**: Fast semantic search using FastEmbed embeddings
 - **🤖 Flexible LLM Support**: Use any LLM via LiteLLM (OpenAI, Anthropic, Ollama, etc.)
 - **🔐 Multi-tenancy**: Secure user and project-based data isolation
-- **🚀 High Performance**: Local embeddings and efficient vector storage with InfinityDB
+- **🚀 High Performance**: Local embeddings and efficient vector storage
+- **🗄️ Cross-Platform Database**: LanceDB works everywhere - Linux, macOS, Windows, and even browsers
 - **🔌 MCP Support**: Model Context Protocol server for AI tool integration
 - **📦 Easy Deployment**: Docker support and uvx compatibility
 
@@ -20,11 +21,11 @@ A high-performance FastAPI service that provides memory and knowledge management
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   FastAPI       │────▶│   InfinityDB    │────▶│   FastEmbed     │
-│   Server        │     │   (Vector DB)   │     │   (Embeddings)  │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-         │                                                │
-         ▼                                                ▼
+│   FastAPI       │────▶│  Vector DB      │────▶│   Embeddings    │
+│   Server        │     │ (LanceDB/       │     │ (FastEmbed/     │
+└─────────────────┘     │  InfinityDB)    │     │  LanceDB)       │
+         │              └─────────────────┘     └─────────────────┘
+         ▼                                                │
 ┌─────────────────┐                              ┌─────────────────┐
 │   LiteLLM       │                              │   Local Models  │
 │   (LLM Bridge)  │                              │   (BGE, etc.)   │
@@ -92,6 +93,40 @@ HANZO_LLM_API_BASE=http://localhost:11434
 
 # Embedding Model
 HANZO_EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
+
+# Database Backend (optional, defaults to lancedb)
+HANZO_DB_BACKEND=lancedb
+HANZO_LANCEDB_PATH=data/lancedb
+```
+
+## Database Backends
+
+Hanzo Memory supports multiple vector database backends:
+
+### LanceDB (Default)
+- Modern embedded vector database that works on ALL platforms
+- Cross-platform: Linux, macOS, Windows, ARM, and even browsers (via WASM)
+- Built-in support for FastEmbed and sentence-transformers
+- Efficient columnar storage format (Apache Arrow/Parquet)
+- Native vector similarity search
+- Can be embedded in Python, JavaScript/TypeScript, Rust applications
+
+### InfinityDB (Alternative, Linux/Windows only)
+- High-performance embedded vector database
+- Not available on macOS
+- Optimized for production workloads
+- Built-in vector indexing
+
+To configure the database backend:
+
+```env
+# Use LanceDB
+HANZO_DB_BACKEND=lancedb
+HANZO_LANCEDB_PATH=data/lancedb
+
+# Use InfinityDB
+HANZO_DB_BACKEND=infinity
+HANZO_INFINITY_DB_PATH=data/infinity_db
 ```
 
 ## API Documentation
