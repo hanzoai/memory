@@ -90,7 +90,7 @@ export class MemoryDB implements VectorDB {
   
   async searchMemories(
     userId: string,
-    query: string,
+    _query: string,
     embedding: number[],
     projectId?: string,
     limit = 10
@@ -174,7 +174,7 @@ export class MemoryDB implements VectorDB {
   
   async searchFacts(
     kbId: string,
-    query: string,
+    _query: string,
     embedding: number[],
     limit = 10
   ): Promise<FactWithScore[]> {
@@ -261,7 +261,7 @@ export class MemoryDB implements VectorDB {
   
   async searchChatMessages(
     sessionId: string,
-    query: string,
+    _query: string,
     embedding: number[],
     limit = 10
   ): Promise<ChatMessageWithScore[]> {

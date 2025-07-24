@@ -26,13 +26,13 @@ fastify.post('/v1/remember', {
   },
 }, async (request, reply) => {
   try {
-    const memory = await client.remember(request.body)
+    const memory = await client.remember(request.body as any)
     return {
       success: true,
       memory,
     }
   } catch (error) {
-    reply.code(500).send({
+    return reply.code(500).send({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
     })
@@ -46,14 +46,14 @@ fastify.post('/v1/memories/search', {
   },
 }, async (request, reply) => {
   try {
-    const memories = await client.search(request.body)
+    const memories = await client.search(request.body as any)
     return {
       success: true,
       memories,
       count: memories.length,
     }
   } catch (error) {
-    reply.code(500).send({
+    return reply.code(500).send({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
     })
@@ -93,7 +93,7 @@ fastify.get('/v1/memories', {
       }
     }
   } catch (error) {
-    reply.code(500).send({
+    return reply.code(500).send({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
     })
@@ -127,7 +127,7 @@ fastify.delete('/v1/memories', {
       }
     }
   } catch (error) {
-    reply.code(500).send({
+    return reply.code(500).send({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
     })

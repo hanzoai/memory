@@ -14,6 +14,15 @@ import type {
   ChatMessageWithScore,
 } from '../models'
 
+// Helper function to convert query results to array
+async function queryToArray<T>(query: any): Promise<T[]> {
+  const results: T[] = []
+  for await (const batch of query) {
+    results.push(...batch.toArray() as T[])
+  }
+  return results
+}
+
 export class LanceDBClient implements VectorDB {
   private connection: Connection | null = null
   private projectsTable: Table | null = null
@@ -46,7 +55,7 @@ export class LanceDBClient implements VectorDB {
           updated_at: new Date(),
         }])
         // Clear dummy data
-        await this.projectsTable.delete('project_id = "' + 'dummy' + '"')
+        await this.projectsTable.delete('project_id = "dummy"')
       } else {
         this.projectsTable = await conn.openTable('projects')
       }
@@ -71,7 +80,7 @@ export class LanceDBClient implements VectorDB {
           updated_at: new Date(),
           embedding: new Array(config.embeddingDimensions).fill(0),
         }])
-        await this.memoriesTable.delete('memory_id = "' + 'dummy' + '"')
+        await this.memoriesTable.delete('memory_id = "dummy"')
       } else {
         this.memoriesTable = await conn.openTable('memories')
       }
@@ -94,7 +103,7 @@ export class LanceDBClient implements VectorDB {
           created_at: new Date(),
           updated_at: new Date(),
         }])
-        await this.knowledgeBasesTable.delete('kb_id = "' + 'dummy' + '"')
+        await this.knowledgeBasesTable.delete('kb_id = "dummy"')
       } else {
         this.knowledgeBasesTable = await conn.openTable('knowledge_bases')
       }
@@ -118,7 +127,7 @@ export class LanceDBClient implements VectorDB {
           updated_at: new Date(),
           embedding: new Array(config.embeddingDimensions).fill(0),
         }])
-        await this.factsTable.delete('fact_id = "' + 'dummy' + '"')
+        await this.factsTable.delete('fact_id = "dummy"')
       } else {
         this.factsTable = await conn.openTable('facts')
       }
@@ -140,7 +149,7 @@ export class LanceDBClient implements VectorDB {
           created_at: new Date(),
           updated_at: new Date(),
         }])
-        await this.chatSessionsTable.delete('session_id = "' + 'dummy' + '"')
+        await this.chatSessionsTable.delete('session_id = "dummy"')
       } else {
         this.chatSessionsTable = await conn.openTable('chat_sessions')
       }
@@ -163,7 +172,7 @@ export class LanceDBClient implements VectorDB {
           created_at: new Date(),
           embedding: new Array(config.embeddingDimensions).fill(0),
         }])
-        await this.chatMessagesTable.delete('message_id = "' + 'dummy' + '"')
+        await this.chatMessagesTable.delete('message_id = "dummy"')
       } else {
         this.chatMessagesTable = await conn.openTable('chat_messages')
       }
@@ -186,14 +195,15 @@ export class LanceDBClient implements VectorDB {
   
   async getProject(projectId: string): Promise<Project | null> {
     const table = await this.getProjectsTable()
-    const results = await table.search().where(`project_id = "${projectId}"`).limit(1).execute()
-    return results.length > 0 ? results[0] as Project : null
+    const query = table.query().where(`project_id = "${projectId}"`).limit(1)
+    const results = await queryToArray<Project>(query)
+    return results.length > 0 ? results[0] : null
   }
   
   async getUserProjects(userId: string): Promise<Project[]> {
     const table = await this.getProjectsTable()
-    const results = await table.search().where(`user_id = "${userId}"`).execute()
-    return results as Project[]
+    const query = table.query().where(`user_id = "${userId}"`)
+    return queryToArray<Project>(query)
   }
   
   async deleteProject(projectId: string): Promise<boolean> {
@@ -217,39 +227,42 @@ export class LanceDBClient implements VectorDB {
   
   async getMemory(memoryId: string): Promise<Memory | null> {
     const table = await this.getMemoriesTable()
-    const results = await table.search().where(`memory_id = "${memoryId}"`).limit(1).execute()
-    return results.length > 0 ? results[0] as Memory : null
+    const query = table.query().where(`memory_id = "${memoryId}"`).limit(1)
+    const results = await queryToArray<Memory>(query)
+    return results.length > 0 ? results[0] : null
   }
   
   async getUserMemories(userId: string, projectId?: string, limit = 100, offset = 0): Promise<Memory[]> {
     const table = await this.getMemoriesTable()
-    let query = table.search().where(`user_id = "${userId}"`)
+    let query = table.query().where(`user_id = "${userId}"`)
     
     if (projectId) {
       query = query.where(`project_id = "${projectId}"`)
     }
     
-    const results = await query.limit(limit).offset(offset).execute()
-    return results as Memory[]
+    const limitedQuery = query.limit(limit + offset)
+    const results = await queryToArray<Memory>(limitedQuery)
+    // Note: LanceDB doesn't have native offset support, so we'll slice the results
+    return results.slice(offset, offset + limit)
   }
   
   async searchMemories(
     userId: string,
-    query: string,
+    _query: string,
     embedding: number[],
     projectId?: string,
     limit = 10
   ): Promise<MemoryWithScore[]> {
     const table = await this.getMemoriesTable()
-    let search = table.search(embedding).where(`user_id = "${userId}"`)
     
-    if (projectId) {
-      search = search.where(`project_id = "${projectId}"`)
-    }
+    // Perform vector search with filters
+    const query = table.vectorSearch(embedding)
+      .where(`user_id = "${userId}"${projectId ? ` AND project_id = "${projectId}"` : ''}`)
+      .limit(limit)
     
-    const results = await search.limit(limit).execute()
+    const results = await queryToArray<any>(query)
     
-    return results.map((r: any) => ({
+    return results.map(r => ({
       ...r,
       similarity_score: 1 - (r._distance || 0), // Convert distance to similarity
     })) as MemoryWithScore[]
@@ -270,7 +283,8 @@ export class LanceDBClient implements VectorDB {
     }
     
     // Count before delete
-    const toDelete = await table.search().where(whereClause).execute()
+    const query = table.query().where(whereClause)
+    const toDelete = await queryToArray<Memory>(query)
     await table.delete(whereClause)
     return toDelete.length
   }
@@ -290,14 +304,15 @@ export class LanceDBClient implements VectorDB {
   
   async getKnowledgeBase(kbId: string): Promise<KnowledgeBase | null> {
     const table = await this.getKnowledgeBasesTable()
-    const results = await table.search().where(`kb_id = "${kbId}"`).limit(1).execute()
-    return results.length > 0 ? results[0] as KnowledgeBase : null
+    const query = table.query().where(`kb_id = "${kbId}"`).limit(1)
+    const results = await queryToArray<KnowledgeBase>(query)
+    return results.length > 0 ? results[0] : null
   }
   
   async getProjectKnowledgeBases(projectId: string): Promise<KnowledgeBase[]> {
     const table = await this.getKnowledgeBasesTable()
-    const results = await table.search().where(`project_id = "${projectId}"`).execute()
-    return results as KnowledgeBase[]
+    const query = table.query().where(`project_id = "${projectId}"`)
+    return queryToArray<KnowledgeBase>(query)
   }
   
   async deleteKnowledgeBase(kbId: string): Promise<boolean> {
@@ -321,33 +336,34 @@ export class LanceDBClient implements VectorDB {
   
   async getFact(factId: string): Promise<Fact | null> {
     const table = await this.getFactsTable()
-    const results = await table.search().where(`fact_id = "${factId}"`).limit(1).execute()
-    return results.length > 0 ? results[0] as Fact : null
+    const query = table.query().where(`fact_id = "${factId}"`).limit(1)
+    const results = await queryToArray<Fact>(query)
+    return results.length > 0 ? results[0] : null
   }
   
   async getKnowledgeBaseFacts(kbId: string, limit = 100, offset = 0): Promise<Fact[]> {
     const table = await this.getFactsTable()
-    const results = await table.search()
+    const query = table.query()
       .where(`kb_id = "${kbId}"`)
-      .limit(limit)
-      .offset(offset)
-      .execute()
-    return results as Fact[]
+      .limit(limit + offset)
+    const results = await queryToArray<Fact>(query)
+    return results.slice(offset, offset + limit)
   }
   
   async searchFacts(
     kbId: string,
-    query: string,
+    _query: string,
     embedding: number[],
     limit = 10
   ): Promise<FactWithScore[]> {
     const table = await this.getFactsTable()
-    const results = await table.search(embedding)
+    const query = table.vectorSearch(embedding)
       .where(`kb_id = "${kbId}"`)
       .limit(limit)
-      .execute()
     
-    return results.map((r: any) => ({
+    const results = await queryToArray<any>(query)
+    
+    return results.map(r => ({
       ...r,
       similarity_score: 1 - (r._distance || 0),
     })) as FactWithScore[]
@@ -361,7 +377,8 @@ export class LanceDBClient implements VectorDB {
   
   async deleteKnowledgeBaseFacts(kbId: string): Promise<number> {
     const table = await this.getFactsTable()
-    const toDelete = await table.search().where(`kb_id = "${kbId}"`).execute()
+    const query = table.query().where(`kb_id = "${kbId}"`)
+    const toDelete = await queryToArray<Fact>(query)
     await table.delete(`kb_id = "${kbId}"`)
     return toDelete.length
   }
@@ -381,20 +398,21 @@ export class LanceDBClient implements VectorDB {
   
   async getChatSession(sessionId: string): Promise<ChatSession | null> {
     const table = await this.getChatSessionsTable()
-    const results = await table.search().where(`session_id = "${sessionId}"`).limit(1).execute()
-    return results.length > 0 ? results[0] as ChatSession : null
+    const query = table.query().where(`session_id = "${sessionId}"`).limit(1)
+    const results = await queryToArray<ChatSession>(query)
+    return results.length > 0 ? results[0] : null
   }
   
   async getUserChatSessions(userId: string, projectId?: string): Promise<ChatSession[]> {
     const table = await this.getChatSessionsTable()
-    let query = table.search().where(`user_id = "${userId}"`)
+    let whereClause = `user_id = "${userId}"`
     
     if (projectId) {
-      query = query.where(`project_id = "${projectId}"`)
+      whereClause += ` AND project_id = "${projectId}"`
     }
     
-    const results = await query.execute()
-    return results as ChatSession[]
+    const query = table.query().where(whereClause)
+    return queryToArray<ChatSession>(query)
   }
   
   async deleteChatSession(sessionId: string): Promise<boolean> {
@@ -417,33 +435,34 @@ export class LanceDBClient implements VectorDB {
   
   async getChatMessage(messageId: string): Promise<ChatMessage | null> {
     const table = await this.getChatMessagesTable()
-    const results = await table.search().where(`message_id = "${messageId}"`).limit(1).execute()
-    return results.length > 0 ? results[0] as ChatMessage : null
+    const query = table.query().where(`message_id = "${messageId}"`).limit(1)
+    const results = await queryToArray<ChatMessage>(query)
+    return results.length > 0 ? results[0] : null
   }
   
   async getChatMessages(sessionId: string, limit = 100, offset = 0): Promise<ChatMessage[]> {
     const table = await this.getChatMessagesTable()
-    const results = await table.search()
+    const query = table.query()
       .where(`session_id = "${sessionId}"`)
-      .limit(limit)
-      .offset(offset)
-      .execute()
-    return results as ChatMessage[]
+      .limit(limit + offset)
+    const results = await queryToArray<ChatMessage>(query)
+    return results.slice(offset, offset + limit)
   }
   
   async searchChatMessages(
     sessionId: string,
-    query: string,
+    _query: string,
     embedding: number[],
     limit = 10
   ): Promise<ChatMessageWithScore[]> {
     const table = await this.getChatMessagesTable()
-    const results = await table.search(embedding)
+    const query = table.vectorSearch(embedding)
       .where(`session_id = "${sessionId}"`)
       .limit(limit)
-      .execute()
     
-    return results.map((r: any) => ({
+    const results = await queryToArray<any>(query)
+    
+    return results.map(r => ({
       ...r,
       similarity_score: 1 - (r._distance || 0),
     })) as ChatMessageWithScore[]
@@ -457,7 +476,8 @@ export class LanceDBClient implements VectorDB {
   
   async deleteChatSessionMessages(sessionId: string): Promise<number> {
     const table = await this.getChatMessagesTable()
-    const toDelete = await table.search().where(`session_id = "${sessionId}"`).execute()
+    const query = table.query().where(`session_id = "${sessionId}"`)
+    const toDelete = await queryToArray<ChatMessage>(query)
     await table.delete(`session_id = "${sessionId}"`)
     return toDelete.length
   }

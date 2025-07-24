@@ -83,7 +83,7 @@ export class OpenAILLMService extends LLMService {
 }
 
 export class MockLLMService extends LLMService {
-  async complete(prompt: string, system?: string): Promise<string> {
+  async complete(prompt: string, _system?: string): Promise<string> {
     return `Mock response to: ${prompt}`
   }
   
@@ -96,7 +96,7 @@ export class MockLLMService extends LLMService {
       .replace(/\b\d{3}-\d{2}-\d{4}\b/g, '[SSN]')
   }
   
-  async filterResults(query: string, results: any[], context?: string): Promise<any[]> {
+  async filterResults(query: string, results: any[], _context?: string): Promise<any[]> {
     // Simple keyword matching
     const queryWords = query.toLowerCase().split(/\s+/)
     

@@ -1,7 +1,6 @@
 import { getDB } from './db'
 import { MemoryService } from './services/memory'
 import { getEmbeddingService } from './services/embeddings'
-import { getLLMService } from './services/llm'
 import type {
   RememberRequest,
   SearchRequest,
