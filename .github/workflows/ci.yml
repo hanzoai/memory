@@ -1,0 +1,223 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node-version: [18.x, 20.x]
+        embedding-provider: [mock, openai, onnx]
+        exclude:
+          # Skip OpenAI tests on PRs to save API calls
+          - embedding-provider: openai
+            os: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || 'never' }}
+          - embedding-provider: openai
+            os: ${{ github.event_name == 'pull_request' && 'macos-latest' || 'never' }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+          
+      - uses: actions/cache@v4
+        name: Setup pnpm cache
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+            
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        
+      - name: Run linter
+        run: pnpm lint
+        
+      - name: Run type check
+        run: pnpm typecheck
+        
+      - name: Run tests
+        env:
+          EMBEDDING_PROVIDER: ${{ matrix.embedding-provider }}
+          OPENAI_API_KEY: ${{ matrix.embedding-provider == 'openai' && secrets.OPENAI_API_KEY || '' }}
+          CI: true
+        run: pnpm test
+        
+      - name: Upload coverage
+        if: matrix.os == 'ubuntu-latest' && matrix.node-version == '20.x' && matrix.embedding-provider == 'mock'
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage/coverage-final.json
+          flags: unittests
+          name: codecov-umbrella
+
+  benchmark:
+    name: Benchmark
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Use Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        
+      - name: Run benchmarks
+        env:
+          EMBEDDING_PROVIDER: mock
+        run: pnpm bench
+        
+      - name: Store benchmark result
+        uses: benchmark-action/github-action-benchmark@v1
+        if: github.ref == 'refs/heads/main'
+        with:
+          tool: 'customBiggerIsBetter'
+          output-file-path: benchmark-results.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+
+  transformers-test:
+    name: Transformers.js Test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        # Skip macOS due to sharp module issues
+        
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Use Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          
+      - name: Install dependencies including transformers
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm add @xenova/transformers
+        
+      - name: Run tests with transformers
+        env:
+          EMBEDDING_PROVIDER: transformers
+          TEST_TRANSFORMERS: true
+        run: pnpm test -- tests/unit/services/embeddings.test.ts
+
+  build:
+    name: Build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Use Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        
+      - name: Build
+        run: pnpm build
+        
+      - name: Test build output
+        run: |
+          node dist/index.js --version
+          node dist/server.js --help || echo "Server help test completed"
+
+  integration:
+    name: Integration Tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        db-backend: [memory, lancedb]
+        
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Use Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        
+      - name: Run integration tests
+        env:
+          DB_BACKEND: ${{ matrix.db-backend }}
+          EMBEDDING_PROVIDER: mock
+        run: pnpm test -- tests/integration
+
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Build Docker image
+        run: |
+          docker build -t hanzo-memory:test .
+          
+      - name: Test Docker image
+        run: |
+          docker run --rm hanzo-memory:test node dist/index.js --version

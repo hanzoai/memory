@@ -10,7 +10,8 @@ export * from './models'
 
 // Database
 export type { VectorDB } from './db'
-export { LanceDBClient, MemoryDB, getDB, closeDB } from './db'
+export { MemoryDB, getDB, closeDB } from './db'
+// Note: LanceDBClient is not exported to avoid loading sharp in environments that don't need it
 
 // Services
 export {

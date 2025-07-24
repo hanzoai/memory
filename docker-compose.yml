@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  memory-server:
+    build:
+      context: .
+      target: production
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_BACKEND=lancedb
+      - LANCEDB_URI=/app/data/lancedb
+      - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-mock}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  memory-test:
+    build:
+      context: .
+      target: test
+    environment:
+      - DB_BACKEND=memory
+      - EMBEDDING_PROVIDER=mock
+    command: pnpm test
+
+  memory-benchmark:
+    build:
+      context: .
+      target: benchmark
+    environment:
+      - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-mock}
+      - BENCHMARK_LLAMA_CPP=${BENCHMARK_LLAMA_CPP:-false}
+      - BENCHMARK_CANDLE=${BENCHMARK_CANDLE:-false}
+      - BENCHMARK_ONNX=${BENCHMARK_ONNX:-false}
+      - BENCHMARK_MLX=${BENCHMARK_MLX:-false}
+    volumes:
+      - ./models:/app/models
+      - ./benchmark-results:/app/benchmark-results
+    command: pnpm bench
+
+  memory-dev:
+    build:
+      context: .
+      target: development
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_BACKEND=lancedb
+      - LANCEDB_URI=/app/data/lancedb
+      - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-mock}
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: pnpm dev

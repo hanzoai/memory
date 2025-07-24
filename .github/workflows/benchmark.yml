@@ -1,0 +1,314 @@
+name: Inference & Embedding Benchmarks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      run_llama:
+        description: 'Run llama.cpp benchmarks'
+        type: boolean
+        default: true
+      run_candle:
+        description: 'Run Candle benchmarks'
+        type: boolean
+        default: true
+      run_mlx:
+        description: 'Run MLX benchmarks (macOS only)'
+        type: boolean
+        default: true
+
+jobs:
+  benchmark-embeddings:
+    name: Embedding Benchmarks
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        embedding-provider: [mock, onnx]
+        
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Use Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        
+      - name: Run embedding benchmarks
+        env:
+          EMBEDDING_PROVIDER: ${{ matrix.embedding-provider }}
+        run: pnpm bench benchmarks/embeddings.bench.ts
+        
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: embedding-bench-${{ matrix.os }}-${{ matrix.embedding-provider }}
+          path: benchmark-results.json
+
+  benchmark-llama-cpp:
+    name: llama.cpp Benchmarks
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Clone and build llama.cpp
+        run: |
+          git clone https://github.com/hanzoai/llama.cpp.git
+          cd llama.cpp
+          make -j$(nproc || sysctl -n hw.ncpu)
+          cp main ../llama
+          cd ..
+          
+      - name: Download test model
+        run: |
+          mkdir -p models
+          # Download a small model for testing (e.g., TinyLlama)
+          wget -q https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf -O models/tinyllama.gguf
+          
+      - name: Use Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        
+      - name: Run llama.cpp benchmarks
+        env:
+          BENCHMARK_LLAMA_CPP: true
+          LLAMA_MODEL_PATH: ./models/tinyllama.gguf
+        run: pnpm bench benchmarks/inference.bench.ts -- --reporter=json > llama-bench.json
+        
+      - name: Display results
+        run: cat llama-bench.json | jq '.testResults[].assertionResults[] | select(.title | contains("tokens per second"))'
+        
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: llama-bench-${{ matrix.os }}
+          path: llama-bench.json
+
+  benchmark-candle:
+    name: Candle Benchmarks
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        
+      - name: Install Candle
+        run: |
+          cargo install candle-cli
+          
+      - name: Download test model
+        run: |
+          mkdir -p models
+          # Download model weights for Candle
+          
+      - name: Use Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        
+      - name: Run Candle benchmarks
+        env:
+          BENCHMARK_CANDLE: true
+          CANDLE_MODEL_PATH: ./models/phi-2
+        run: |
+          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            # Enable Metal acceleration on macOS
+            export CANDLE_METAL=1
+          fi
+          pnpm bench benchmarks/inference.bench.ts -- --reporter=json > candle-bench.json
+        
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: candle-bench-${{ matrix.os }}
+          path: candle-bench.json
+
+  benchmark-mlx:
+    name: MLX Benchmarks (macOS)
+    runs-on: macos-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install MLX
+        run: |
+          pip install mlx mlx-lm
+          
+      - name: Use Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        
+      - name: Run MLX benchmarks
+        env:
+          BENCHMARK_MLX: true
+        run: pnpm bench benchmarks/inference.bench.ts -- --reporter=json > mlx-bench.json
+        
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: mlx-bench-macos
+          path: mlx-bench.json
+
+  benchmark-onnx:
+    name: ONNX Runtime Benchmarks
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Use Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm add onnxruntime-node
+          
+      - name: Download ONNX model
+        run: |
+          mkdir -p models
+          # Download a small ONNX model for testing
+          wget -q https://github.com/onnx/models/raw/main/text/machine_comprehension/t5/model/t5-small-encoder.onnx -O models/t5-small.onnx || echo "Model download skipped"
+          
+      - name: Run ONNX benchmarks
+        env:
+          BENCHMARK_ONNX: true
+        run: pnpm bench benchmarks/inference.bench.ts -- --reporter=json > onnx-bench.json
+        
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: onnx-bench-${{ matrix.os }}
+          path: onnx-bench.json
+
+  compare-results:
+    name: Compare Benchmark Results
+    needs: [benchmark-llama-cpp, benchmark-candle, benchmark-mlx, benchmark-onnx, benchmark-embeddings]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: bench-results
+          
+      - name: Install jq
+        run: sudo apt-get install -y jq
+        
+      - name: Generate comparison report
+        run: |
+          echo "# Benchmark Comparison Report" > BENCHMARK_REPORT.md
+          echo "" >> BENCHMARK_REPORT.md
+          echo "## Inference Benchmarks" >> BENCHMARK_REPORT.md
+          echo "" >> BENCHMARK_REPORT.md
+          
+          # Process llama.cpp results
+          if [ -d "bench-results/llama-bench-ubuntu-latest" ]; then
+            echo "### llama.cpp Performance" >> BENCHMARK_REPORT.md
+            echo "| Platform | Single Inference | Batch (5) | Tokens/sec |" >> BENCHMARK_REPORT.md
+            echo "|----------|------------------|-----------|------------|" >> BENCHMARK_REPORT.md
+            
+            for os in ubuntu-latest macos-latest; do
+              if [ -f "bench-results/llama-bench-$os/llama-bench.json" ]; then
+                single=$(cat "bench-results/llama-bench-$os/llama-bench.json" | jq -r '.testResults[].assertionResults[] | select(.title == "single inference") | .duration' || echo "N/A")
+                batch=$(cat "bench-results/llama-bench-$os/llama-bench.json" | jq -r '.testResults[].assertionResults[] | select(.title | contains("batch inference (5")) | .duration' || echo "N/A")
+                echo "| $os | ${single}ms | ${batch}ms | TBD |" >> BENCHMARK_REPORT.md
+              fi
+            done
+            echo "" >> BENCHMARK_REPORT.md
+          fi
+          
+          # Process embedding results
+          echo "## Embedding Benchmarks" >> BENCHMARK_REPORT.md
+          echo "" >> BENCHMARK_REPORT.md
+          echo "| Platform | Provider | Single Embed | Batch (10) |" >> BENCHMARK_REPORT.md
+          echo "|----------|----------|--------------|------------|" >> BENCHMARK_REPORT.md
+          
+          for os in ubuntu-latest macos-latest; do
+            for provider in mock onnx; do
+              if [ -f "bench-results/embedding-bench-$os-$provider/benchmark-results.json" ]; then
+                echo "| $os | $provider | TBD | TBD |" >> BENCHMARK_REPORT.md
+              fi
+            done
+          done
+          
+          cat BENCHMARK_REPORT.md
+          
+      - name: Post results as PR comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('BENCHMARK_REPORT.md', 'utf8');
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: report
+            });
+            
+      - name: Upload comparison report
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-comparison
+          path: BENCHMARK_REPORT.md

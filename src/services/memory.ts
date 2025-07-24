@@ -12,7 +12,7 @@ import type {
 export class MemoryService {
   async remember(request: RememberRequest): Promise<Memory> {
     const db = await getDB()
-    const embeddings = getEmbeddingService()
+    const embeddings = await getEmbeddingService()
     const llm = getLLMService()
     
     let content = request.content
@@ -40,7 +40,7 @@ export class MemoryService {
   
   async search(request: SearchRequest): Promise<MemoryWithScore[]> {
     const db = await getDB()
-    const embeddings = getEmbeddingService()
+    const embeddings = await getEmbeddingService()
     const llm = getLLMService()
     
     // Generate query embedding
@@ -52,7 +52,7 @@ export class MemoryService {
       request.query,
       queryEmbedding,
       request.projectid,
-      request.limit
+      request.limit ?? 10
     )
     
     // Filter with LLM if requested

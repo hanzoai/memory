@@ -7,12 +7,13 @@ dotenvConfig()
 const ConfigSchema = z.object({
   // Database Backend Settings
   dbBackend: z.enum(['lancedb', 'memory']).default('lancedb'),
-  lancedbPath: z.string().default('./data/lancedb'),
+  lancedbUri: z.string().default('./data/lancedb'),
+  lancedbApiKey: z.string().optional(),
   
   // Embedding Settings
   embeddingModel: z.string().default('Xenova/all-MiniLM-L6-v2'),
   embeddingDimensions: z.number().default(384),
-  embeddingProvider: z.enum(['transformers', 'openai']).default('transformers'),
+  embeddingProvider: z.enum(['transformers', 'openai', 'mock', 'onnx', 'candle', 'llama']).default('mock'),
   
   // OpenAI Settings (optional)
   openaiApiKey: z.string().optional(),
@@ -32,18 +33,19 @@ export type Config = z.infer<typeof ConfigSchema>
 
 export function loadConfig(overrides?: Partial<Config>): Config {
   const env = {
-    dbBackend: process.env.HANZO_DB_BACKEND,
-    lancedbPath: process.env.HANZO_LANCEDB_PATH,
-    embeddingModel: process.env.HANZO_EMBEDDING_MODEL,
-    embeddingDimensions: process.env.HANZO_EMBEDDING_DIMENSIONS ? parseInt(process.env.HANZO_EMBEDDING_DIMENSIONS) : undefined,
-    embeddingProvider: process.env.HANZO_EMBEDDING_PROVIDER,
+    dbBackend: process.env.DB_BACKEND || process.env.HANZO_DB_BACKEND,
+    lancedbUri: process.env.LANCEDB_URI || process.env.HANZO_LANCEDB_URI,
+    lancedbApiKey: process.env.LANCEDB_API_KEY || process.env.HANZO_LANCEDB_API_KEY,
+    embeddingModel: process.env.EMBEDDING_MODEL || process.env.HANZO_EMBEDDING_MODEL,
+    embeddingDimensions: (process.env.EMBEDDING_DIMENSIONS || process.env.HANZO_EMBEDDING_DIMENSIONS) ? parseInt(process.env.EMBEDDING_DIMENSIONS || process.env.HANZO_EMBEDDING_DIMENSIONS || '') : undefined,
+    embeddingProvider: process.env.EMBEDDING_PROVIDER || process.env.HANZO_EMBEDDING_PROVIDER,
     openaiApiKey: process.env.OPENAI_API_KEY,
     openaiModel: process.env.OPENAI_MODEL,
     openaiEmbeddingModel: process.env.OPENAI_EMBEDDING_MODEL,
-    host: process.env.HANZO_HOST,
-    port: process.env.HANZO_PORT ? parseInt(process.env.HANZO_PORT) : undefined,
-    stripPiiDefault: process.env.HANZO_STRIP_PII_DEFAULT === 'true',
-    filterWithLlmDefault: process.env.HANZO_FILTER_WITH_LLM_DEFAULT === 'true',
+    host: process.env.HOST || process.env.HANZO_HOST,
+    port: (process.env.PORT || process.env.HANZO_PORT) ? parseInt(process.env.PORT || process.env.HANZO_PORT || '') : undefined,
+    stripPiiDefault: (process.env.STRIP_PII_DEFAULT || process.env.HANZO_STRIP_PII_DEFAULT) === 'true',
+    filterWithLlmDefault: (process.env.FILTER_WITH_LLM_DEFAULT || process.env.HANZO_FILTER_WITH_LLM_DEFAULT) === 'true',
   }
   
   // Remove undefined values

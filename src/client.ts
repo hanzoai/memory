@@ -1,6 +1,15 @@
 import { getDB } from './db'
 import { MemoryService } from './services/memory'
-import { getEmbeddingService } from './services/embeddings'
+
+// Lazy load embedding service to avoid loading transformers when not needed
+let _getEmbeddingService: any = null
+async function getEmbeddingServiceLazy() {
+  if (!_getEmbeddingService) {
+    const module = await import('./services/embeddings')
+    _getEmbeddingService = module.getEmbeddingService
+  }
+  return _getEmbeddingService()
+}
 import type {
   RememberRequest,
   SearchRequest,
@@ -105,7 +114,7 @@ export class MemoryClient {
   // Fact operations
   async addFact(request: AddFactRequest): Promise<Fact> {
     const db = await getDB()
-    const embeddings = getEmbeddingService()
+    const embeddings = await getEmbeddingServiceLazy()
     
     // Generate embedding
     const embedding = await embeddings.embed(request.content)
@@ -138,7 +147,7 @@ export class MemoryClient {
       return facts.map(f => ({ ...f, similarity_score: 1 }))
     }
     
-    const embeddings = getEmbeddingService()
+    const embeddings = await getEmbeddingServiceLazy()
     const queryEmbedding = await embeddings.embed(request.query)
     
     return db.searchFacts(
@@ -187,7 +196,7 @@ export class MemoryClient {
   // Chat message operations
   async addChatMessage(request: AddChatMessageRequest): Promise<ChatMessage> {
     const db = await getDB()
-    const embeddings = getEmbeddingService()
+    const embeddings = await getEmbeddingServiceLazy()
     
     // Generate embedding
     const embedding = await embeddings.embed(request.content)
@@ -213,7 +222,7 @@ export class MemoryClient {
   
   async searchChatMessages(request: SearchChatMessagesRequest): Promise<ChatMessageWithScore[]> {
     const db = await getDB()
-    const embeddings = getEmbeddingService()
+    const embeddings = await getEmbeddingServiceLazy()
     
     const queryEmbedding = await embeddings.embed(request.query)
     

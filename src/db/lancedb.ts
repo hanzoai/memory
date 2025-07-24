@@ -34,7 +34,7 @@ export class LanceDBClient implements VectorDB {
   
   async getConnection(): Promise<Connection> {
     if (!this.connection) {
-      this.connection = await connect(config.lancedbPath)
+      this.connection = await connect(config.lancedbUri)
     }
     return this.connection
   }
